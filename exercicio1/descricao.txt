@@ -1,0 +1,2 @@
+Construa um algoritmo (em linguagem Python) que gere uma lista com 50 números inteiros.
+O algoritmo deve encontrar a media dos valores e mostrar os números mais próximos dessa media.
