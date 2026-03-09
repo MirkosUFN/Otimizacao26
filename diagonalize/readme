@@ -1,0 +1,2 @@
+Escrever uma função que diagonalize uma matriz (2x3) de coeficientes. O trabalho pode ser em duplas.
+O sistema deve retornar um vetor [x,y] e mostrar cada etapa do cálculo de linhas na matriz.
