@@ -13,9 +13,9 @@ def imprimirMatriz(matriz, titulo="Matriz Atual:", operacao=None):
     print("-" * 45)
 
 def gauss():
-    print("=== Resolvedor de Sistemas via Gauss-Jordan ===")
+    print("Resolvedor de Sistemas via Gauss-Jordan")
     
-    # 1. Receber o tamanho do sistema
+    #1- Receber o tamanho do sistema
     while True:
         try:
             n = int(input("Digite o número de variáveis (que será igual ao de equações): "))
@@ -27,7 +27,7 @@ def gauss():
 
     matriz = []
 
-    # 2. Receber as equacoes
+    # 2- Receber as equacoes
     print("\nPara cada equação, digite os coeficientes e o resultado separados por espaço.")
     
     for i in range(n):
@@ -48,7 +48,7 @@ def gauss():
     print()
     imprimirMatriz(matriz, "Matriz Inicial:")
 
-    # 3. Processo de diagonalizacao
+    #3- Processo de diagonalizacao
     for i in range(n):
         if matriz[i][i] == 0:
             for k in range(i + 1, n):
@@ -81,7 +81,7 @@ def gauss():
                         
                     imprimirMatriz(matriz, "Matriz Atual:", operacao_str)
 
-    # 4. resultado final
+    # 4- resultado final
     print("\nResultado Final")
     print("\nMatriz Atual:")
     for linha in matriz:
@@ -92,8 +92,7 @@ def gauss():
     
     print("\nValores:")
     for i in range(n):
-        print(f"X{i + 1} = {matriz[i][n]}")
+        print(f"X{i + 1} -> {matriz[i][n]}")
 
-# Executa o programa
 if __name__ == "__main__":
     gauss()
