@@ -7,7 +7,7 @@ def imprimir_matriz(matriz, titulo):
         print(linha_formatada)
 
 def resolver_matriz(matriz):
-    print("=== Resolvedor de Sistemas (Gauss-Jordan) ===\n")
+    print("=== Resolvedor de Gauss-Jordan ===\n")
 
     n = len(matriz)
 
@@ -39,25 +39,25 @@ def resolver_matriz(matriz):
 
         # 3. Zerar apenas ABAIXO do pivô
         for k in range(i+1, n):
-            fator_multiplicador = matriz[k][i]
-            if fator_multiplicador != 0.0:
-                sinal = "-" if fator_multiplicador > 0 else "+"
-                fator_abs = abs(round(fator_multiplicador, 4))
+            multiplicador = matriz[k][i]
+            if multiplicador != 0.0:
+                sinal = "-" if multiplicador > 0 else "+"
+                fator_abs = abs(round(multiplicador, 4))
                 print(f"-> L{k+1} = L{k+1} {sinal} {fator_abs} * L{i+1}")
                 for j in range(n + 1):
-                    matriz[k][j] = matriz[k][j] - (fator_multiplicador * matriz[i][j])
+                    matriz[k][j] = matriz[k][j] - (multiplicador * matriz[i][j])
                 imprimir_matriz(matriz, f"Zerando elemento da linha {k+1}")
 
     # === zerar ACIMA da diagonal
     for i in range(n-1, -1, -1):
         for k in range(i-1, -1, -1):
-            fator_multiplicador = matriz[k][i]
-            if fator_multiplicador != 0.0:
-                sinal = "-" if fator_multiplicador > 0 else "+"
-                fator_abs = abs(round(fator_multiplicador, 4))
+            multiplicador = matriz[k][i]
+            if multiplicador != 0.0:
+                sinal = "-" if multiplicador > 0 else "+"
+                fator_abs = abs(round(multiplicador, 4))
                 print(f"-> L{k+1} = L{k+1} {sinal} {fator_abs} * L{i+1}")
                 for j in range(n + 1):
-                    matriz[k][j] = matriz[k][j] - (fator_multiplicador * matriz[i][j])
+                    matriz[k][j] = matriz[k][j] - (multiplicador * matriz[i][j])
                 imprimir_matriz(matriz, f"Zerando elemento da linha {k+1}")
 
     # Exibindo a solução final
