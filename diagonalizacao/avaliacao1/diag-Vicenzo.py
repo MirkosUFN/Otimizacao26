@@ -1,7 +1,6 @@
 from fractions import Fraction
 
 def imprimirMatriz(matriz, titulo="Matriz Atual:", operacao=None):
-    """Imprime a matriz no formato exato da imagem fornecida."""
     if operacao:
         print(f"\nOperação: {operacao}\n")
     
