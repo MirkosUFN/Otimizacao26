@@ -2,3 +2,5 @@ Construa um algoritmo que receba como parâmetros os valores de a e b para a equ
 O algoritmo deve receber também o valor da inequação (>, >=, < ou <=).
 O algoritmo então deve desenhar a área de solução para a inequação resultante.
 
+O nome do arquivo de ser inequacao-[nome].extensão
+O commit deve ser feito nessa pasta.
