@@ -18,11 +18,10 @@ def exibir_grafico(x, y, a, b):
     plt.plot(x, y, linestyle='--', color='blue', alpha=0.6, label=f'Reta: y = {a}x + {b}')
     plt.scatter(x, y, color='red', s=80, edgecolors='black', label='Pontos Calculados', zorder=5)
 
-    # Adiciona rótulos em cada ponto
+    # Adicionando os rótulos em cada ponto
     for i in range(len(x)):
         plt.text(x[i] + 0.2, y[i], f'({x[i]}, {y[i]})', fontsize=9, fontweight='bold')
 
-    # Estilização do gráfico
     plt.title('Representação Gráfica da Função Linear', fontsize=14)
     plt.xlabel('Eixo X (Entrada)', fontsize=12)
     plt.ylabel('Eixo Y (Saída)', fontsize=12)
