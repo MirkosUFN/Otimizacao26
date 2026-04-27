@@ -125,8 +125,8 @@ def plotar_sistema_inequacoes(inequacoes):
         ax.contour(X, Y, mascara_solucao, levels=[0.5], colors=['blue'], linewidths=1)
     
     # Ajustes finais
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, 10)
+    ax.set_xlim(-3, 10)
+    ax.set_ylim(-3, 10)
     ax.set_xlabel('Eixo X')
     ax.set_ylabel('Eixo Y')
     ax.set_title('Sistema de Inequações - Região de Solução (Primeiro Quadrante)', fontsize=14, fontweight='bold')
