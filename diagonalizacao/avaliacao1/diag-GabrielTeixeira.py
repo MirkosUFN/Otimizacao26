@@ -1,5 +1,3 @@
-# Arquivo: diag-gabriel.py
-
 def imprimir_matriz(matriz, descricao_passo):
     """Função auxiliar para imprimir a matriz de forma formatada."""
     print(f"\n--- {descricao_passo} ---")
