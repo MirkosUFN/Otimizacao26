@@ -3,7 +3,7 @@
 ### Criar e ativar o ambiente virtual (venv) e instalar as dependências para rodar os exercícios
 
 ```txt
-python3 -m venv venv
+python3 -m venv venv (criar ambiente virtual para não instalar globalmente na sua máquina)
 
 source ./venv/bin/activate (no linux)
 
