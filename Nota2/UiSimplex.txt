@@ -1,0 +1,6 @@
+Construir uma interface gráfica ao usuário (UI) onde o usuário pode inserir um problema de programação linear (PL) e resolver usando a função SIMPLEX.
+Retornar o resultado também nessa UI, conforme resolvido pelo simplex.
+O aluno deverá incluir na submissão todo o projeto (incluindo dependências em um arquivo requirements.txt) da interface gráfica e do algoritmo que resolve
+o problema (SIMPLEX) em um único arquivo zipado com nome NOTA2-[nomeAluno].zip
+
+*a UI não pode ser em linha de comando.
