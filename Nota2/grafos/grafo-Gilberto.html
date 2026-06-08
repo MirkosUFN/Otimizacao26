@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grade Curricular</title>
+  <meta name="description" content="Visualização interativa do grafo de dependências entre disciplinas do curso de Ciência da Computação." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- vis-network -->
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0d14;
+      --surface:   #111520;
+      --surface2:  #181d2e;
+      --border:    rgba(255,255,255,0.07);
+      --text:      #e8ecf4;
+      --muted:     #6b7494;
+
+      --aprovado:  #3b82f6;
+      --matriculado: #22c55e;
+      --reprovado: #ef4444;
+      --pendente:  #4b5570;
+
+      --gold:      #f59e0b;
+      --accent:    #6366f1;
+
+      --radius:    14px;
+      --panel-w:   300px;
+      --header-h:  64px;
+    }
+
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+    /* ─── Animated background ──────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(99,102,241,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(59,130,246,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 50% 50%, rgba(34,197,94,0.04) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    #app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
+
+    header {
+      height: var(--header-h);
+      display: flex; align-items: center; justify-content: center; gap: 40px;
+      padding: 0 24px;
+      background: rgba(17,21,32,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .header-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #818cf8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .header-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-sub   { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+    .header-stats {
+      display: flex; gap: 24px; align-items: center;
+    }
+    .stat-item { text-align: center; }
+    .stat-val  { font-size: 20px; font-weight: 800; line-height: 1; }
+    .stat-lbl  { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+
+    .header-controls { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; font-family: inherit;
+    }
+    .btn:hover { background: var(--accent); border-color: var(--accent); }
+    .btn.active { background: var(--accent); border-color: var(--accent); }
+
+    .main { flex: 1; display: flex; overflow: hidden; }
+
+    #graph-wrap {
+      flex: 1; position: relative; overflow: hidden;
+    }
+    #graph-canvas {
+      width: 100%; height: 100%;
+    }
+
+    /* zoom */
+    .zoom-controls {
+      position: absolute; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 6px; z-index: 10;
+    }
+    .zoom-btn {
+      width: 38px; height: 38px; border-radius: 10px;
+      border: 1px solid var(--border); background: rgba(17,21,32,0.9);
+      backdrop-filter: blur(12px); color: var(--text);
+      font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .zoom-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+    #sem-labels {
+      position: absolute; top: 0; left: 0; pointer-events: none;
+      width: 100%; height: 100%;
+    }
+
+    #panel {
+      width: var(--panel-w);
+      background: rgba(17,21,32,0.92);
+      backdrop-filter: blur(24px);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden; flex-shrink: 0;
+      transition: transform 0.3s ease;
+    }
+    #panel.collapsed { transform: translateX(var(--panel-w)); }
+
+    .panel-header {
+      padding: 20px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+    /* Card de disciplina selecionada */
+    #detail-card {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: none;
+    }
+    #detail-card.visible { display: block; }
+
+    .dc-semester {
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .dc-name {
+      font-size: 16px; font-weight: 700; line-height: 1.3; margin-bottom: 4px;
+    }
+    .dc-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--muted); margin-bottom: 12px;
+    }
+    .dc-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .badge {
+      padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 600;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .badge-aprovado   { background: rgba(59,130,246,0.15);  color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .badge-matriculado{ background: rgba(34,197,94,0.15);   color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .badge-reprovado  { background: rgba(239,68,68,0.15);   color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .badge-pendente   { background: rgba(75,85,112,0.2);    color: #94a3b8; border: 1px solid rgba(75,85,112,0.3); }
+
+    .dc-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .dc-meta-item { background: var(--surface2); border-radius: 8px; padding: 10px 12px; }
+    .dc-meta-val { font-size: 18px; font-weight: 700; }
+    .dc-meta-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .dc-deps-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .dep-tag {
+      display: inline-block; padding: 3px 8px; border-radius: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: 11px; margin: 2px 2px 2px 0; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .dep-tag:hover { border-color: var(--accent); color: #818cf8; }
+
+    /* Legenda */
+    .legend {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .legend-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+    .legend-dot  { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Progress bar de semestres */
+    .semesters-panel { padding: 20px; overflow-y: auto; flex: 1; }
+    .sem-row { margin-bottom: 14px; }
+    .sem-row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .sem-name { font-size: 12px; font-weight: 600; }
+    .sem-pct  { font-size: 11px; color: var(--muted); }
+    .progress-track {
+      height: 6px; border-radius: 100px; background: var(--surface2); overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 100px;
+      background: linear-gradient(90deg, var(--accent), #818cf8);
+      transition: width 0.8s ease;
+    }
+
+    /* ─── Tooltip ────────────────────────────────────────────────── */
+    #tooltip {
+      position: fixed; z-index: 1000;
+      background: rgba(17,21,32,0.97);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      border-radius: 10px; padding: 12px 14px;
+      pointer-events: none; display: none;
+      max-width: 220px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .tt-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .tt-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+    .tt-row  { font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+
+    /* ─── Search bar ─────────────────────────────────────────────── */
+    .search-wrap {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .search-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 13px;
+      font-family: inherit; outline: none; transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--muted); }
+
+    /* ─── Panel toggle ───────────────────────────────────────────── */
+    #panel-toggle {
+      position: absolute; top: 50%; right: 0;
+      transform: translateY(-50%);
+      width: 20px; height: 48px;
+      background: rgba(17,21,32,0.9);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 50; font-size: 10px; color: var(--muted);
+      transition: all 0.2s;
+    }
+    #panel-toggle:hover { color: var(--text); background: var(--accent); }
+
+    /* ─── Empty detail state ─────────────────────────────────────── */
+    .empty-detail {
+      padding: 24px 20px; text-align: center; color: var(--muted); font-size: 13px;
+    }
+    .empty-detail .icon { font-size: 32px; margin-bottom: 8px; }
+
+    /* ─── Scrollbar ──────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ─── Responsive tweaks ──────────────────────────────────────── */
+    @media (max-width: 768px) {
+      :root { --panel-w: 260px; }
+      .header-stats { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══ HEADER ════════════════════════════════════════════════ -->
+  <header>
+    <div class="header-stats" id="headerStats">
+      <div class="stat-item">
+        <div class="stat-val" style="color: var(--aprovado)" id="statAprovado">—</div>
+        <div class="stat-lbl">Aprovadas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val" style="color: var(--matriculado)" id="statMatriculado">—</div>
+        <div class="stat-lbl">Matriculadas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val" style="color: var(--reprovado)" id="statReprovado">—</div>
+        <div class="stat-lbl">Reprovadas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val" style="color: var(--pendente)" id="statPendente">—</div>
+        <div class="stat-lbl">Pendentes</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val" style="color: var(--gold)" id="statMedia">—</div>
+        <div class="stat-lbl">Média Geral</div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <button class="btn active" id="btnLayout" onclick="toggleLayout()">Hierárquico</button>
+      <button class="btn" id="btnFit" onclick="fitGraph()">Ajustar</button>
+      <button class="btn" id="btnFilter" onclick="cycleFilter()">Filtro: Todos</button>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN ══════════════════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Graph canvas -->
+    <div id="graph-wrap">
+      <div id="graph-canvas"></div>
+
+      <!-- Zoom controls -->
+      <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()" title="Ampliar">+</button>
+        <button class="zoom-btn" onclick="zoomReset()" title="Resetar">⊙</button>
+        <button class="zoom-btn" onclick="zoomOut()" title="Reduzir">−</button>
+      </div>
+
+      <!-- Panel toggle -->
+      <div id="panel-toggle" onclick="togglePanel()">◀</div>
+    </div>
+
+    <!-- Side panel -->
+    <div id="panel">
+      <div class="panel-header">
+        <div class="panel-title">Disciplinas</div>
+      </div>
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <input class="search-input" id="searchInput" type="text" placeholder="Buscar disciplina…" oninput="filterSearch(this.value)" />
+      </div>
+
+      <!-- Detail card -->
+      <div id="detail-card">
+        <div class="dc-semester" id="dc-sem"></div>
+        <div class="dc-name"     id="dc-name"></div>
+        <div class="dc-code"     id="dc-code"></div>
+        <div class="dc-badges"   id="dc-badges"></div>
+        <div class="dc-meta"     id="dc-meta"></div>
+        <div id="dc-prereqs-wrap" style="display:none">
+          <div class="dc-deps-title">Pré-requisitos</div>
+          <div id="dc-prereqs"></div>
+        </div>
+        <div id="dc-unlocks-wrap" style="display:none;margin-top:12px">
+          <div class="dc-deps-title">Desbloqueia</div>
+          <div id="dc-unlocks"></div>
+        </div>
+      </div>
+
+      <div class="empty-detail" id="emptyDetail">
+        <div class="icon">🔍</div>
+        Clique em uma disciplina no grafo para ver detalhes
+      </div>
+
+      <!-- Legend -->
+      <div class="legend">
+        <div class="legend-title">Legenda</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--aprovado)"></span> Aprovado</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--matriculado)"></span> Matriculado</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--reprovado)"></span> Reprovado</div>
+        <div class="legend-item"><span class="legend-dot" style="background:var(--pendente)"></span> Não cursada</div>
+      </div>
+
+      <!-- Semester progress -->
+      <div class="semesters-panel" id="semProgress"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-code" id="tt-code"></div>
+  <div class="tt-row" id="tt-status"></div>
+  <div class="tt-row" id="tt-info"></div>
+</div>
+
+<script>
+const disciplines = [
+  { id:'G02R1', name:'Algoritmos e Programação I',              sem:1, status:'aprovado',    nota:8.6, horas:80 },
+  { id:'G02A3', name:'Geometria Analítica e Álgebra Linear',    sem:1, status:'aprovado',    nota:8.7, horas:80 },
+  { id:'G02L1', name:'Introdução à Computação',                 sem:1, status:'aprovado',    nota:6.9, horas:80 },
+  { id:'G00A4', name:'Língua Brasileira de Sinais',             sem:1, status:'aprovado',    nota:9.3, horas:40 },
+  { id:'G00A5', name:'Metodologia Científica',                  sem:1, status:'aprovado',    nota:6.5, horas:40 },
+  { id:'G03F5', name:'Probabilidade e Estatística',             sem:1, status:'aprovado',    nota:7.0, horas:40 },
+  { id:'G03I2', name:'Algoritmos e Programação II',             sem:2, status:'aprovado',    nota:7.4, horas:80 },
+  { id:'G00J9', name:'Cálculo Diferencial e Integral',          sem:2, status:'aprovado',    nota:6.0, horas:80 },
+  { id:'G00A2', name:'Educação e Identidade',                   sem:2, status:'aprovado',    nota:null, horas:40 },
+  { id:'G02S5', name:'Matemática Discreta',                     sem:2, status:'pendente',    nota:null, horas:80 },
+  { id:'G03A4', name:'Organização e Arquitetura de Computadores',sem:2,status:'aprovado',    nota:7.4, horas:80 },
+  { id:'G03I1', name:'Programação de Sistemas',                 sem:2, status:'aprovado',    nota:9.3, horas:40 },
+  { id:'G00O8', name:'Comunicação de Dados',                    sem:3, status:'aprovado',    nota:7.6, horas:40 },
+  { id:'G01E2', name:'Engenharia e Requisitos de Software',     sem:3, status:'aprovado',    nota:6.7, horas:80 },
+  { id:'G01P2', name:'Estruturas de Dados',                     sem:3, status:'aprovado',    nota:8.8, horas:80 },
+  { id:'G04H2', name:'Lógica para Computação',                  sem:3, status:'aprovado',    nota:6.1, horas:40 },
+  { id:'G03I4', name:'Programação Orientada a Objetos',         sem:3, status:'aprovado',    nota:6.7, horas:80 },
+  { id:'G03I8', name:'Projeto de Banco de Dados',               sem:3, status:'aprovado',    nota:7.3, horas:80 },
+  { id:'G02I7', name:'Implementação de Banco de Dados',         sem:4, status:'reprovado',   nota:0.0, horas:80 },
+  { id:'G02M4', name:'Laboratório de Desenvolvimento',          sem:4, status:'aprovado',    nota:9.3, horas:80 },
+  { id:'G02X1', name:'Modelagem e Simulação',                   sem:4, status:'aprovado',    nota:9.1, horas:40 },
+  { id:'G03C3', name:'Pesquisa e Ordenação',                    sem:4, status:'aprovado',    nota:7.7, horas:80 },
+  { id:'G03OO', name:'Redes de Computadores',                   sem:4, status:'aprovado',    nota:6.0, horas:80 },
+  { id:'G00K6', name:'Cálculo Numérico',                        sem:5, status:'aprovado',    nota:null, horas:40 },
+  { id:'G02K5', name:'Inteligência Artificial',                 sem:5, status:'aprovado',    nota:7.7, horas:80 },
+  { id:'G02Q1', name:'Linguagens Formais e Autômatos',          sem:5, status:'aprovado',    nota:6.5, horas:80 },
+  { id:'G03J0', name:'Projeto de Software',                     sem:5, status:'aprovado',    nota:7.9, horas:80 },
+  { id:'G03S1', name:'Sistemas Operacionais',                   sem:5, status:'aprovado',    nota:6.4, horas:80 },
+  { id:'G00A0', name:'Antropologia e Cosmovisão Cristã',        sem:6, status:'aprovado',    nota:9.9, horas:40 },
+  { id:'G01O2', name:'Experiência do Usuário',                  sem:6, status:'aprovado',    nota:8.3, horas:40 },
+  { id:'G02J6', name:'Inovação Tecnológica e Empreendedorismo', sem:6, status:'reprovado',   nota:4.8, horas:40 },
+  { id:'G03P4', name:'Segurança Digital',                       sem:6, status:'pendente',    nota:null, horas:60 },
+  { id:'G03R6', name:'Sistemas Digitais',                       sem:6, status:'aprovado',    nota:6.7, horas:80 },
+  { id:'G03R7', name:'Sistemas Distribuídos',                   sem:6, status:'aprovado',    nota:6.3, horas:80 },
+  { id:'G00E2', name:'Aplicativos Móveis',                      sem:7, status:'matriculado', nota:null, horas:40 },
+  { id:'G00O3', name:'Computação Gráfica',                      sem:7, status:'matriculado', nota:null, horas:80 },
+  { id:'G00A3', name:'Ética e Cidadania',                       sem:7, status:'matriculado', nota:null, horas:40 },
+  { id:'G03A9', name:'Otimização Computacional',                sem:7, status:'matriculado', nota:null, horas:80 },
+  { id:'G03R8', name:'Sistemas Embarcados',                     sem:7, status:'matriculado', nota:null, horas:80 },
+  { id:'G03Y5', name:'Trabalho de Conclusão de Curso I',        sem:7, status:'matriculado', nota:null, horas:40 },
+  { id:'G00N1', name:'Compiladores',                            sem:8, status:'pendente',    nota:null, horas:80 },
+  { id:'G00N2', name:'Complexidade de Algoritmos',              sem:8, status:'pendente',    nota:null, horas:80 },
+  { id:'G03I6', name:'Programação Paralela',                    sem:8, status:'pendente',    nota:null, horas:40 },
+  { id:'G04H3', name:'Tecnologias Inteligentes',                sem:8, status:'pendente',    nota:null, horas:40 },
+  { id:'G03Y0', name:'Tolerância a Falhas',                     sem:8, status:'pendente',    nota:null, horas:40 },
+  { id:'G03Y7', name:'Trabalho de Conclusão de Curso II',       sem:8, status:'pendente',    nota:null, horas:40 },
+  { id:'G04E8', name:'Programação Python',                      sem:9, status:'matriculado', nota:null, horas:40 },
+  { id:'G04E9', name:'Tecnologia de Bebidas',                   sem:9, status:'pendente',    nota:null, horas:40 },
+];
+
+const deps = [
+  ['G02R1','G03I2'],
+  ['G02R1','G03I4'],
+  ['G02A3','G00J9'],
+  ['G00J9','G00K6'],
+  ['G02L1','G03I1'],
+  ['G03F5','G02K5'],
+  ['G03I2','G01P2'],
+  ['G03I2','G03C3'],
+  ['G01P2','G03C3'],
+  ['G01P2','G00N1'],
+  ['G03I8','G02I7'],
+  ['G03I4','G02M4'],
+  ['G03A4','G02M4'],
+  ['G03A4','G03S1'],
+  ['G03A4','G03R6'],
+  ['G03A4','G03R8'],
+  ['G01E2','G03J0'],
+  ['G03I4','G03J0'],
+  ['G03I4','G00E2'],
+  ['G03C3','G00N2'],
+  ['G03C3','G02K5'],
+  ['G04H2','G02Q1'],
+  ['G02Q1','G00N1'],
+  ['G00O8','G03OO'],
+  ['G03OO','G03R7'],
+  ['G03S1','G03R7'],
+  ['G03S1','G03I6'],
+  ['G03S1','G03P4'],
+  ['G03J0','G00O3'],
+  ['G03J0','G03Y5'],
+  ['G02K5','G03A9'],
+  ['G02K5','G04H3'],
+  ['G03R7','G03Y0'],
+  ['G03Y5','G03Y7'],
+  ['G02S5','G04H2'],
+  ['G02S5','G02Q1'],
+];
+
+const COLOR = {
+  aprovado:    { bg:'#1e3a5f', border:'#3b82f6', font:'#93c5fd', glow:'rgba(59,130,246,0.4)' },
+  matriculado: { bg:'#14532d', border:'#22c55e', font:'#86efac', glow:'rgba(34,197,94,0.4)' },
+  reprovado:   { bg:'#450a0a', border:'#ef4444', font:'#fca5a5', glow:'rgba(239,68,68,0.4)' },
+  pendente:    { bg:'#1a1f2e', border:'#4b5570', font:'#94a3b8', glow:'rgba(75,85,112,0.3)' },
+};
+
+const SEM_LABELS = ['','1º Sem','2º Sem','3º Sem','4º Sem','5º Sem','6º Sem','7º Sem','8º Sem','ELT'];
+
+const byId = id => disciplines.find(d => d.id === id);
+
+function statusLabel(s) {
+  return { aprovado:'Aprovado', matriculado:'Matriculado', reprovado:'Reprovado', pendente:'Não cursada' }[s] || s;
+}
+
+const SPACING_X = 200;
+const SPACING_Y = 160;
+
+const semGroups = {};
+disciplines.forEach(d => {
+  if (!semGroups[d.sem]) semGroups[d.sem] = [];
+  semGroups[d.sem].push(d);
+});
+
+const nodes = new vis.DataSet(
+  disciplines.map(d => {
+    const c = COLOR[d.status];
+    const list = semGroups[d.sem];
+    const idx  = list.indexOf(d);
+    const totalH = list.length;
+    const xOff = (idx - (totalH - 1) / 2) * SPACING_X;
+
+    const shortName = d.name.length > 28 ? d.name.slice(0, 26) + '…' : d.name;
+
+    return {
+      id: d.id,
+      label: shortName + '\n' + d.id,
+      x: xOff,
+      y: (d.sem - 1) * SPACING_Y,
+      color: {
+        background: c.bg,
+        border:     c.border,
+        highlight:  { background: c.bg, border: '#f59e0b' },
+        hover:      { background: c.bg, border: '#818cf8' },
+      },
+      font: {
+        color:  c.font,
+        size:   12,
+        face:   'Inter, sans-serif',
+        bold:   { color: c.font, size: 12, face: 'Inter, sans-serif' },
+        multi:  false,
+      },
+      borderWidth:          2,
+      borderWidthSelected:  3,
+      shape:    'box',
+      margin:   { top: 10, bottom: 10, left: 12, right: 12 },
+      shadow:   { enabled: true, color: c.glow, size: 10, x: 0, y: 4 },
+      widthConstraint: { minimum: 160, maximum: 200 },
+    };
+  })
+);
+
+const edges = new vis.DataSet(
+  deps.map(([from, to], i) => ({
+    id: `e${i}`,
+    from, to,
+    arrows: { to: { enabled: true, scaleFactor: 0.8, type: 'arrow' } },
+    color:  { color: 'rgba(99,102,241,0.45)', highlight: '#f59e0b', hover: '#818cf8' },
+    smooth: { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.5 },
+    width:  1.5,
+    selectionWidth: 2.5,
+    shadow: { enabled: false },
+  }))
+);
+
+let network;
+let hierarchical = true;
+let currentFilter = 'all';
+let panelOpen = true;
+
+const options = {
+  layout: {
+    hierarchical: {
+      enabled: true,
+      direction: 'TB',
+      sortMethod: 'directed',
+      levelSeparation: SPACING_Y,
+      nodeSpacing: SPACING_X,
+      treeSpacing: 120,
+      blockShifting: true,
+      edgeMinimization: true,
+    },
+  },
+  physics: { enabled: false },
+  interaction: {
+    hover: true,
+    tooltipDelay: 0,
+    zoomView: true,
+    dragView: true,
+    multiselect: false,
+    navigationButtons: false,
+    keyboard: { enabled: true, speed: { x: 10, y: 10, zoom: 0.02 } },
+  },
+  nodes: { chosen: true },
+  edges: { chosen: true },
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  const container = document.getElementById('graph-canvas');
+  network = new vis.Network(container, { nodes, edges }, options);
+
+  network.on('click', onNodeClick);
+  network.on('hoverNode', onHover);
+  network.on('blurNode', onBlur);
+
+  setTimeout(() => {
+    network.fit({ animation: false });
+    const currentScale = network.getScale();
+    network.moveTo({ scale: currentScale * 1.5, animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
+  }, 300);
+
+  buildStats();
+  buildSemProgress();
+});
+
+function onNodeClick(params) {
+  if (!params.nodes.length) {
+    clearDetail(); return;
+  }
+  const id = params.nodes[0];
+  const d  = byId(id);
+  if (!d) return;
+  showDetail(d);
+  highlightConnected(id);
+}
+
+function highlightConnected(id) {
+  const connected = network.getConnectedNodes(id);
+  const connEdges = network.getConnectedEdges(id);
+  const allNodes = nodes.getIds();
+  const allEdges = edges.getIds();
+
+  const nodeUpdates = allNodes.map(nid => ({
+    id: nid,
+    opacity: connected.includes(nid) || nid === id ? 1 : 0.25,
+  }));
+  const edgeUpdates = allEdges.map(eid => ({
+    id: eid,
+    color: { color: connEdges.includes(eid) ? 'rgba(245,158,11,0.8)' : 'rgba(99,102,241,0.1)' },
+    width: connEdges.includes(eid) ? 2.5 : 1,
+  }));
+
+  nodes.update(nodeUpdates);
+  edges.update(edgeUpdates);
+}
+
+function clearHighlight() {
+  const allNodes = nodes.getIds().map(id => ({ id, opacity: 1 }));
+  const allEdges = edges.getIds().map(id => ({
+    id,
+    color: { color: 'rgba(99,102,241,0.45)' },
+    width: 1.5,
+  }));
+  nodes.update(allNodes);
+  edges.update(allEdges);
+}
+
+const tooltip = document.getElementById('tooltip');
+
+function onHover(params) {
+  const d = byId(params.node); if (!d) return;
+  document.getElementById('tt-name').textContent = d.name;
+  document.getElementById('tt-code').textContent = d.id;
+  document.getElementById('tt-status').innerHTML =
+    `<span style="color:${getStatusColor(d.status)}">●</span> ${statusLabel(d.status)}`;
+  document.getElementById('tt-info').textContent =
+    `${d.horas}h` + (d.nota !== null ? ` · Nota ${d.nota.toFixed(1)}` : '');
+  tooltip.style.display = 'block';
+  moveTt(params);
+}
+function onBlur() { tooltip.style.display = 'none'; }
+
+document.addEventListener('mousemove', e => {
+  if (tooltip.style.display === 'block') {
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+  }
+});
+function moveTt(p) {
+  const rect = document.getElementById('graph-canvas').getBoundingClientRect();
+  const pos  = network.canvasToDOM({ x: p.event.center.x, y: p.event.center.y });
+  tooltip.style.left = (rect.left + pos.x + 14) + 'px';
+  tooltip.style.top  = (rect.top  + pos.y - 10) + 'px';
+}
+
+function getStatusColor(s) {
+  return { aprovado:'#3b82f6', matriculado:'#22c55e', reprovado:'#ef4444', pendente:'#4b5570' }[s] || '#fff';
+}
+
+function showDetail(d) {
+  document.getElementById('emptyDetail').style.display = 'none';
+  const card = document.getElementById('detail-card');
+  card.classList.add('visible');
+
+  document.getElementById('dc-sem').textContent  = SEM_LABELS[d.sem] || 'ELT';
+  document.getElementById('dc-name').textContent = d.name;
+  document.getElementById('dc-code').textContent = d.id;
+
+  const badgeClass = { aprovado:'badge-aprovado', matriculado:'badge-matriculado', reprovado:'badge-reprovado', pendente:'badge-pendente' }[d.status];
+  document.getElementById('dc-badges').innerHTML =
+    `<span class="badge ${badgeClass}">${statusLabel(d.status)}</span>` +
+    `<span class="badge badge-pendente">${d.horas}h</span>`;
+
+  document.getElementById('dc-meta').innerHTML =
+    `<div class="dc-meta-item"><div class="dc-meta-val" style="color:${getStatusColor(d.status)}">${d.nota !== null ? d.nota.toFixed(1) : '—'}</div><div class="dc-meta-lbl">Nota</div></div>` +
+    `<div class="dc-meta-item"><div class="dc-meta-val" style="color:#818cf8">${d.horas}</div><div class="dc-meta-lbl">Horas</div></div>`;
+
+  const prereqs = deps.filter(([,to]) => to === d.id).map(([from]) => byId(from)).filter(Boolean);
+  const prereqWrap = document.getElementById('dc-prereqs-wrap');
+  if (prereqs.length) {
+    prereqWrap.style.display = 'block';
+    document.getElementById('dc-prereqs').innerHTML = prereqs.map(p =>
+      `<span class="dep-tag" onclick="selectNode('${p.id}')">${p.name.length > 22 ? p.name.slice(0,20)+'…' : p.name}</span>`
+    ).join('');
+  } else {
+    prereqWrap.style.display = 'none';
+  }
+
+  const unlocks = deps.filter(([from]) => from === d.id).map(([,to]) => byId(to)).filter(Boolean);
+  const unlocksWrap = document.getElementById('dc-unlocks-wrap');
+  if (unlocks.length) {
+    unlocksWrap.style.display = 'block';
+    document.getElementById('dc-unlocks').innerHTML = unlocks.map(u =>
+      `<span class="dep-tag" onclick="selectNode('${u.id}')">${u.name.length > 22 ? u.name.slice(0,20)+'…' : u.name}</span>`
+    ).join('');
+  } else {
+    unlocksWrap.style.display = 'none';
+  }
+}
+
+function clearDetail() {
+  document.getElementById('detail-card').classList.remove('visible');
+  document.getElementById('emptyDetail').style.display = 'block';
+  clearHighlight();
+}
+
+function selectNode(id) {
+  network.selectNodes([id]);
+  const d = byId(id); if (!d) return;
+  showDetail(d);
+  highlightConnected(id);
+  network.focus(id, { scale: 1.2, animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
+}
+
+function buildStats() {
+  const counts = { aprovado:0, matriculado:0, reprovado:0, pendente:0 };
+  let sumNota = 0, countNota = 0;
+  disciplines.forEach(d => {
+    counts[d.status]++;
+    if (d.nota !== null && d.nota > 0) { sumNota += d.nota; countNota++; }
+  });
+  document.getElementById('statAprovado').textContent    = counts.aprovado;
+  document.getElementById('statMatriculado').textContent = counts.matriculado;
+  document.getElementById('statReprovado').textContent   = counts.reprovado;
+  document.getElementById('statPendente').textContent    = counts.pendente;
+  document.getElementById('statMedia').textContent       = countNota ? (sumNota/countNota).toFixed(1) : '—';
+}
+
+function buildSemProgress() {
+  const wrap = document.getElementById('semProgress');
+  const semNums = [...new Set(disciplines.map(d => d.sem))].sort((a,b) => a-b);
+  wrap.innerHTML = semNums.map(s => {
+    const list = disciplines.filter(d => d.sem === s);
+    const done = list.filter(d => d.status === 'aprovado').length;
+    const pct  = Math.round((done / list.length) * 100);
+    return `
+      <div class="sem-row">
+        <div class="sem-row-header">
+          <span class="sem-name">${SEM_LABELS[s] || 'ELT'}</span>
+          <span class="sem-pct">${done}/${list.length} · ${pct}%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleLayout() {
+  hierarchical = !hierarchical;
+  const btn = document.getElementById('btnLayout');
+  if (hierarchical) {
+    network.setOptions({ layout: { hierarchical: { enabled: true, direction:'LR', sortMethod:'directed' } }, physics: { enabled: false } });
+    btn.textContent = 'Hierárquico';
+  } else {
+    network.setOptions({ layout: { hierarchical: { enabled: false } }, physics: { enabled: true, solver:'forceAtlas2Based', stabilization:{ iterations: 100 } } });
+    setTimeout(() => network.setOptions({ physics: { enabled: false } }), 2500);
+    btn.textContent = 'Força';
+  }
+  btn.classList.toggle('active', hierarchical);
+  setTimeout(() => network.fit({ animation: { duration: 800, easingFunction: 'easeInOutQuad' } }), 300);
+}
+
+function fitGraph() {
+  network.fit({ animation: { duration: 700, easingFunction: 'easeInOutQuad' } });
+}
+
+let filters = ['all','aprovado','matriculado','reprovado','pendente'];
+let filterIdx = 0;
+function cycleFilter() {
+  filterIdx = (filterIdx + 1) % filters.length;
+  currentFilter = filters[filterIdx];
+  const btn = document.getElementById('btnFilter');
+  const labels = { all:'Todos', aprovado:'Aprovadas', matriculado:'Matriculadas', reprovado:'Reprovadas', pendente:'Pendentes' };
+  btn.textContent = 'Filtro: ' + labels[currentFilter];
+
+  const nodeUpdates = disciplines.map(d => ({
+    id: d.id,
+    hidden: currentFilter !== 'all' && d.status !== currentFilter,
+  }));
+  nodes.update(nodeUpdates);
+}
+
+function zoomIn()    { network.moveTo({ scale: network.getScale() * 1.2, animation: { duration: 300 } }); }
+function zoomOut()   { network.moveTo({ scale: network.getScale() / 1.2, animation: { duration: 300 } }); }
+function zoomReset() { network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } }); }
+
+function togglePanel() {
+  panelOpen = !panelOpen;
+  document.getElementById('panel').classList.toggle('collapsed', !panelOpen);
+  document.getElementById('panel-toggle').textContent = panelOpen ? '▶' : '◀';
+}
+
+function filterSearch(val) {
+  const q = val.toLowerCase().trim();
+  const nodeUpdates = disciplines.map(d => ({
+    id: d.id,
+    hidden: q ? !(d.name.toLowerCase().includes(q) || d.id.toLowerCase().includes(q)) : false,
+  }));
+  nodes.update(nodeUpdates);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { clearDetail(); network.unselectAll(); }
+  if (e.key === '+' || e.key === '=') zoomIn();
+  if (e.key === '-') zoomOut();
+  if (e.key === '0') zoomReset();
+});
+</script>
+</body>
+</html>
