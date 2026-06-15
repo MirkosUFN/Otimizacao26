@@ -1,0 +1,1 @@
+A partir dos dados dos seus grafos, determinar o grau máximo de separação entre eles (máximo que um nodo consegue atingir outro nodo dentro do grafo proposto).
